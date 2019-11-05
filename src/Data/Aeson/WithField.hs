@@ -1,12 +1,12 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE OverloadedLists #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE DeriveGeneric       #-}
+{-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE OverloadedLists     #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE PolyKinds           #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TupleSections       #-}
+{-# LANGUAGE TypeFamilies        #-}
 {-|
 Module      : Data.Aeson.WithField
 Description : Provides utility to inject fields into aeson values.
@@ -160,24 +160,24 @@ module Data.Aeson.WithField(
   , OnlyId
   ) where
 
-import Control.Applicative
-import Control.DeepSeq
-import Control.Lens hiding ((.=))
-import Control.Monad
-import Data.Aeson
-import Data.Aeson.Types (typeMismatch)
-import Data.Hashable
-import Data.Monoid
-import Data.Proxy
-import Data.Swagger
-import GHC.Generics
-import GHC.TypeLits
-import Servant.Docs
+import           Control.Applicative
+import           Control.DeepSeq
+import           Control.Lens        hiding ((.=))
+import           Control.Monad
+import           Data.Aeson
+import           Data.Aeson.Types    (typeMismatch)
+import           Data.Hashable
+import           Data.Monoid
+import           Data.Proxy
+import           Data.Swagger
+import           GHC.Generics
+import           GHC.TypeLits
+import           Servant.Docs
 
-import qualified Data.Foldable as F
+import qualified Data.Foldable       as F
 import qualified Data.HashMap.Strict as H
-import qualified Data.List as L
-import qualified Data.Text as T
+import qualified Data.List           as L
+import qualified Data.Text           as T
 
 -- | Injects field 'a' into 'b' with tag 's'. It has
 -- special instances for 'ToJSON' and 'FromJSON' for
@@ -262,7 +262,7 @@ instance (KnownSymbol s, FromJSON a, FromJSON b) => FromJSON (WithField s a b) w
 instance (KnownSymbol s, ToSchema a, ToSchema b) => ToSchema (WithField s a b) where
   declareNamedSchema _ = do
     NamedSchema n s <- declareNamedSchema (Proxy :: Proxy b)
-    if s ^. type_ == SwaggerObject then inline n s
+    if s ^. type_ == pure SwaggerObject then inline n s
       else wrapper n s
     where
     field = T.pack $ symbolVal (Proxy :: Proxy s)
@@ -270,7 +270,7 @@ instance (KnownSymbol s, ToSchema a, ToSchema b) => ToSchema (WithField s a b) w
     wrapper n s = do
       indexSchema <- declareSchema (Proxy :: Proxy a)
       return $ NamedSchema (fmap (namePrefix <>) n) $ mempty
-        & type_ .~ SwaggerObject
+        & type_ ?~ SwaggerObject
         & properties .~
             [ ("value", Inline s)
             , (field, Inline indexSchema)
@@ -336,11 +336,11 @@ instance (ToJSON a, ToJSON b) => ToJSON (WithFields a b) where
     in case jsonb of
       Object bvs -> case jsona of
         Object avs -> Object $ H.union avs bvs
-        _ -> Object $ H.insert "injected" jsona bvs
+        _          -> Object $ H.insert "injected" jsona bvs
       _ -> case jsona of
         Object avs -> Object $ case H.lookup "value" avs of
           Nothing -> H.insert "value" jsonb avs
-          Just _ -> avs
+          Just _  -> avs
         _ -> object [
             "injected" .= jsona
           , "value" .= jsonb
@@ -369,7 +369,7 @@ instance (ToJSON a, FromJSON a, FromJSON b) => FromJSON (WithFields a b) where
       extractFields :: ToJSON a => a -> [T.Text]
       extractFields a = case toJSON a of
         Object vs -> H.keys vs
-        _ -> []
+        _         -> []
   parseJSON wat = typeMismatch "Expected JSON Object" wat
 
 -- | Note: the instance tries to generate schema of the json as object with
@@ -381,18 +381,18 @@ instance (ToSchema a, ToSchema b) => ToSchema (WithFields a b) where
     NamedSchema na sa <- declareNamedSchema (Proxy :: Proxy a)
     let newName = combinedName <$> na <*> nb
     return . NamedSchema newName $ case (sa ^. type_ , sb ^. type_) of
-      (SwaggerObject, SwaggerObject) -> sb <> sa
-      (SwaggerObject, _) -> bwrapper sb <> sa
-      (_, SwaggerObject) -> sb <> awrapper sa
-      _ -> bwrapper sb <> awrapper sa
+      (Just SwaggerObject, Just SwaggerObject) -> sb <> sa
+      (Just SwaggerObject, Just _)             -> bwrapper sb <> sa
+      (Just _, Just SwaggerObject)             -> sb <> awrapper sa
+      _                                        -> bwrapper sb <> awrapper sa
     where
     combinedName a b = "WithFields_" <> a <> "_" <> b
     awrapper nas = mempty
-      & type_ .~ SwaggerObject
+      & type_ ?~ SwaggerObject
       & properties .~ [ ("injected", Inline nas) ]
       & required .~ [ "injected" ]
     bwrapper nbs = mempty
-      & type_ .~ SwaggerObject
+      & type_ ?~ SwaggerObject
       & properties .~ [ ("value", Inline nbs) ]
       & required .~ [ "value" ]
 
@@ -437,7 +437,7 @@ instance (KnownSymbol s, ToSchema a) => ToSchema (OnlyField s a) where
   declareNamedSchema _ = do
     NamedSchema an as <- declareNamedSchema (Proxy :: Proxy a)
     return $ NamedSchema (fmap ("OnlyField" <>) an) $ mempty
-      & type_ .~ SwaggerObject
+      & type_ ?~ SwaggerObject
       & properties .~ [(field, Inline as)]
       & required .~ [field]
     where
